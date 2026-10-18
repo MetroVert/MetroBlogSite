@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Simple Blog</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: #f4f4f7;
+    color: #222;
+    line-height: 1.6;
+    padding: 20px;
+  }
+  header {
+    max-width: 720px;
+    margin: 0 auto 24px;
+    text-align: center;
+  }
+  header h1 { font-size: 2rem; color: #2c3e50; }
+  header p { color: #666; }
+  main { max-width: 720px; margin: 0 auto; }
+  .post {
+    background: #fff;
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .post h2 { color: #2c3e50; margin-bottom: 6px; }
+  .meta { font-size: 0.85rem; color: #888; margin-bottom: 14px; }
+  .post-body { margin-bottom: 18px; }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+    border-top: 1px solid #eee;
+    border-bottom: 1px solid #eee;
+    padding: 12px 0;
+    margin-bottom: 16px;
+  }
+  .stars { display: inline-flex; gap: 2px; }
+  .stars span {
+    cursor: pointer;
+    font-size: 1.4rem;
+    color: #ccc;
+    transition: color 0.15s;
+  }
+  .stars span.active { color: #f5b301; }
+  .rating-info { font-size: 0.9rem; color: #555; }
+
+  button {
+    font-family: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    background: #2c7be5;
+    color: #fff;
+    transition: background 0.15s;
+  }
+  button:hover:not(:disabled) { background: #1a5fb4; }
+  button:disabled { background: #aaa; cursor: not-allowed; }
+
+  .vote-btn.voted { background: #27ae60; }
+
+  .comments { margin-top: 16px; }
+  .comments h3 { font-size: 1rem; margin-bottom: 10px; color: #444; }
+  .comment {
+    background: #f9f9fb;
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    font-size: 0.92rem;
+  }
+  .comment .author { font-weight: 600; color: #2c3e50; }
+
+  .comment-form { display: flex; gap: 8px; margin-top: 12px; }
+  .comment-form input {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.9rem;
+  }
+  .comment-form input:focus { outline: 2px solid #2c7be5; border-color: transparent; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>My Simple Blog</h1>
+  <p>Read, rate, comment, and vote for your favourite post.</p>
+</header>
+
+<main id="posts"></main>
+
+<script>
+  // ---- Sample data ----
+  const posts = [
+    {
+      id: 1,
+      title: "Getting Started with Web Development",
+      author: "Jane Doe",
+      date: "2026-01-15",
+      body: "Web development begins with HTML, CSS, and JavaScript. Master these three and you can build almost anything on the web.",
+      comments: [
+        { author: "Alex", text: "Great intro, thanks!" }
+      ],
+      ratings: [5, 4],
+      votes: 0
+    },
+    {
+      id: 2,
+      title: "Why Learn SQL Early",
+      author: "John Smith",
+      date: "2026-02-02",
+      body: "Databases power almost every app. Learning SQL early makes backend work far easier and teaches you to think in structured data.",
+      comments: [],
+      ratings: [4],
+      votes: 0
+    }
+  ];
+
+  // ---- State: prevent duplicate votes in this session ----
+  const votedPosts = new Set();
+  const userRatings = {}; // postId -> rating
+
+  // ---- Helpers ----
+  function averageRating(ratings) {
+    if (!ratings.length) return 0;
+    const sum = ratings.reduce((a, b) => a + b, 0);
+    return (sum / ratings.length).toFixed(1);
+  }
+
+  function escapeHTML(str) {
+    return str.replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+
+  // ---- Render ----
+  function render() {
+    const container = document.getElementById("posts");
+    container.innerHTML = "";
+
+    posts.forEach(post => {
+      const avg = averageRating(post.ratings);
+      const userRating = userRatings[post.id] || 0;
+      const hasVoted = votedPosts.has(post.id);
+
+      const el = document.createElement("article");
+      el.className = "post";
+      el.innerHTML = `
+        <h2>${escapeHTML(post.title)}</h2>
+        <div class="meta">By ${escapeHTML(post.author)} · ${escapeHTML(post.date)}</div>
+        <p class="post-body">${escapeHTML(post.body)}</p>
+
+        <div class="actions">
+          <div>
+            <div class="stars" data-post="${post.id}">
+              ${[1,2,3,4,5].map(n =>
+                `<span data-value="${n}" class="${n <= userRating ? 'active' : ''}">★</span>`
+              ).join("")}
+            </div>
+            <div class="rating-info">
+              ${avg} / 5 (${post.ratings.length} rating${post.ratings.length === 1 ? "" : "s"})
+            </div>
+          </div>
+          <button class="vote-btn ${hasVoted ? 'voted' : ''}"
+                  data-post="${post.id}"
+                  ${hasVoted ? 'disabled' : ''}>
+            ${hasVoted ? "✔ Voted" : "Vote Best"} (${post.votes})
+          </button>
+        </div>
+
+        <div class="comments">
+          <h3>Comments (${post.comments.length})</h3>
+          <div class="comment-list">
+            ${post.comments.map(c => `
+              <div class="comment">
+                <span class="author">${escapeHTML(c.author)}:</span>
+                ${escapeHTML(c.text)}
+              </div>
+            `).join("") || '<p style="color:#888;font-size:0.9rem;">No comments yet.</p>'}
+          </div>
+          <form class="comment-form" data-post="${post.id}">
+            <input type="text" name="text" placeholder="Write a comment..." maxlength="200" required />
+            <button type="submit">Post</button>
+          </form>
+        </div>
+      `;
+      container.appendChild(el);
+    });
+
+    attachEvents();
+  }
+
+  // ---- Events ----
+  function attachEvents() {
+    // Rating stars
+    document.querySelectorAll(".stars").forEach(starsEl => {
+      const postId = Number(starsEl.dataset.post);
+      starsEl.querySelectorAll("span").forEach(star => {
+        star.addEventListener("click", () => {
+          const value = Number(star.dataset.value);
+          const post = posts.find(p => p.id === postId);
+          if (!post) return;
+
+          // Remove previous rating from this user in session
+          if (userRatings[postId]) {
+            const prev = userRatings[postId];
+            const idx = post.ratings.indexOf(prev);
+            if (idx > -1) post.ratings.splice(idx, 1);
+          }
+          post.ratings.push(value);
+          userRatings[postId] = value;
+          render();
+        });
+      });
+    });
+
+    // Vote button
+    document.querySelectorAll(".vote-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const postId = Number(btn.dataset.post);
+        if (votedPosts.has(postId)) return;
+        const post = posts.find(p => p.id === postId);
+        if (!post) return;
+        post.votes++;
+        votedPosts.add(postId);
+        render();
+      });
+    });
+
+    // Comment form
+    document.querySelectorAll(".comment-form").forEach(form => {
+      form.addEventListener("submit", e => {
+        e.preventDefault();
+        const postId = Number(form.dataset.post);
+        const post = posts.find(p => p.id === postId);
+        const input = form.querySelector("input[name='text']");
+        const text = input.value.trim();
+        if (!text || !post) return;
+
+        post.comments.push({ author: "You", text });
+        input.value = "";
+        render();
+      });
+    });
+  }
+
+  // ---- Initial render ----
+  render();
+</script>
+</body>
+</html>
